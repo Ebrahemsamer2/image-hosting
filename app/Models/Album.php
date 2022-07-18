@@ -12,11 +12,6 @@ class Album extends Model
     use HasFactory;
     protected $fillable = ['name', 'user_id'];
 
-    public static function getAll($paginate_limit = 10)
-    {
-        return self::orderBy('created_at', 'DESC')->paginate( $paginate_limit );
-    }
-
     public function user()
     {
         return $this->belongsTo(User::class);

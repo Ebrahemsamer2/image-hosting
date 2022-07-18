@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers\V1;
 
-use App\Http\Controllers\V1\Controller;
+use App\Http\Controllers\Controller;
 use App\Models\ImageManipulation;
 use App\Http\Requests\ResizeImageRequest;
 use Illuminate\Support\Facades\File;
+use Intervention\Image\Facades\Image;
 
 use App\Models\Album;
+
+use App\Http\Resources\V1\ImageManipulationResource;
 
 class ImageManipulationController extends Controller
 {
@@ -18,7 +21,7 @@ class ImageManipulationController extends Controller
      */
     public function index()
     {
-        //
+        return ImageMainpulationResource::collection( ImageManipulation::paginate() );
     }
 
     /**
@@ -28,7 +31,7 @@ class ImageManipulationController extends Controller
      */
     public function byAlbum(Album $album)
     {
-        
+        return ImageMainpulationResource::collection( ImageManipulation::where('album_id', $album)->paginate() );
     }
 
     /**
@@ -40,6 +43,8 @@ class ImageManipulationController extends Controller
     public function resize(ResizeImageRequest $request)
     {
         $all = $request->all();
+        
+        
 
         $image = $all['image'];
         unset( $all['image'] );
@@ -47,8 +52,10 @@ class ImageManipulationController extends Controller
         $data = [
             'type' => ImageManipulation::TYPE_RESIZE,
             'data' => json_encode($all),
-            'user_id' => null,
+            'user_id' => 1,
         ];
+        
+        $data['album_id'] = 1;
 
         if( isset( $all['album_id'] ) ) {
             $data['album_id'] = $all['album_id'];
@@ -56,38 +63,43 @@ class ImageManipulationController extends Controller
 
         $dir = "images/" . \Str::random() . '/';
         $absolute_path = public_path($dir);
-        File::makeDirectory($absolute_path);
-
+        File::makeDirectory($absolute_path, 0755, true);
+        
         if( $image instanceof UploadFile )
         {
-            $extension = $image->getClientOriginalExtension();
             $data['name'] = $image->getClientOriginalName();
-            $filename = pathinfo($name, PATHINFO_FILENAME);
-            $path = $image->move( $absolute_path, $data['name']);
+            $filename = pathinfo($data['name'], PATHINFO_FILENAME);
+            $extension = $image->getClientOriginalExtension();
+            $original_path = $absolute_path . $data['name'];
+            $data['path'] = $dir . $data['name'];
+            $image->move( $original_path, $data['name']);
         }
         else 
         {
             $data['name'] = pathinfo($image, PATHINFO_BASENAME);
+
             $filename = pathinfo($image, PATHINFO_FILENAME);
             $extension = pathinfo($image, PATHINFO_EXTENSION);
-            copy($image, $absolute_path . $data['name']);
+            $original_path = $absolute_path . $data['name'];
+            copy($image, $original_path);
+            $data['path'] = $dir . $data['name'];
         }
-
-        $original_path = $absolute_path . $data['name'];
-        $data['path'] = $dir . $data['name'];
 
         $w = $all['w'];
         $h = $all['h']??false;
 
-        list('width', 'height', 'image') = $this->getOriginalWidthAndHeight($w, $h, $original_path);
+        $original_width_height = $this->getOriginalWidthAndHeight($w, $h, $original_path);
+        $width = $original_width_height[0];
+        $height = $original_width_height[1];
+        $image = $original_width_height[2];
 
-        $resized_filename = $filename . '-resized' . $extension;
+        $resized_filename = $filename . '-resized.' . $extension;
         $image->resize($width, $height)->save($absolute_path . $resized_filename);
 
         $data['output_path'] = $dir . $resized_filename;
 
         $image_manipulation = ImageManipulation::create($data);
-        return $image_manipulation;
+        return new ImageManipulationResource($image_manipulation);
     }
 
     /**
@@ -96,9 +108,9 @@ class ImageManipulationController extends Controller
      * @param  \App\Models\ImageManipulation  $imageManipulation
      * @return \Illuminate\Http\Response
      */
-    public function show(ImageManipulation $imageManipulation)
+    public function show(ImageManipulation $image)
     {
-        //
+        return new ImageManipulationResource( $image );
     }
 
     /**
@@ -107,9 +119,9 @@ class ImageManipulationController extends Controller
      * @param  \App\Models\ImageManipulation  $imageManipulation
      * @return \Illuminate\Http\Response
      */
-    public function destroy(ImageManipulation $imageManipulation)
+    public function destroy(ImageManipulation $image)
     {
-        $imageManipulation->delete();
+        $image->delete();
         return resource('Image has been deleted!', 204);
     }
 

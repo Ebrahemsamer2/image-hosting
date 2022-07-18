@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers\V1;
 
-use App\Http\Controllers\V1\Controller;
+use App\Http\Controllers\Controller;
 use App\Models\Album;
 use App\Http\Resources\V1\AlbumResource;
 
@@ -18,7 +18,7 @@ class AlbumController extends Controller
      */
     public function index()
     {
-        return AlbumResource::collection( Album::getAll() );
+        return AlbumResource::collection( Album::paginate() );
     }
 
     /**
